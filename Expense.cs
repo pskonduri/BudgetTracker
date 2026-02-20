@@ -11,19 +11,6 @@ public class Expense
         Date = date;
     }
 
-    public override string ToString()
-    {
-        return $"{Amount},{Category},{Date}";
-    }
-
-    public static Expense FromString(string line)
-    {
-        var parts = line.Split(',');
-        return new Expense(
-            double.Parse(parts[0]),
-            parts[1],
-            DateTime.Parse(parts[2])
-        );
-    }
+    public Expense() { } // Needed for JSON deserialization
 }
 

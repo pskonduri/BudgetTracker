@@ -1,29 +1,34 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 
 class Program
 {
     static List<Expense> LoadExpenses()
     {
-        string filePath = "expenses.txt";
-        List<Expense> expenses = new List<Expense>();
+            string filePath = "expenses.json";
 
-        if (File.Exists(filePath))
-        {
-            foreach (var line in File.ReadAllLines(filePath))
-            {
-                expenses.Add(Expense.FromString(line));
-            }
-        }
+            if (!File.Exists(filePath))
+                    return new List<Expense>();
 
-        return expenses;
+            string json = File.ReadAllText(filePath);
+
+            return JsonSerializer.Deserialize<List<Expense>>(json)
+                    ?? new List<Expense>();
     }
 
     static void SaveExpenses(List<Expense> expenses)
     {
-        string filePath = "expenses.txt";
-        File.WriteAllLines(filePath, expenses.Select(e => e.ToString()));
+            string filePath = "expenses.json";
+
+            var options = new JsonSerializerOptions
+            {
+                    WriteIndented = true
+            };
+
+            string json = JsonSerializer.Serialize(expenses, options);
+            File.WriteAllText(filePath, json);
     }
 
     static void ShowMonthlySummary(List<Expense> expenses)
