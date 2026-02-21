@@ -5,33 +5,7 @@ using System.Text.Json;
 
 class Program
 {
-    static List<Expense> LoadExpenses()
-    {
-            string filePath = "expenses.json";
-
-            if (!File.Exists(filePath))
-                    return new List<Expense>();
-
-            string json = File.ReadAllText(filePath);
-
-            return JsonSerializer.Deserialize<List<Expense>>(json)
-                    ?? new List<Expense>();
-    }
-
-    static void SaveExpenses(List<Expense> expenses)
-    {
-            string filePath = "expenses.json";
-
-            var options = new JsonSerializerOptions
-            {
-                    WriteIndented = true
-            };
-
-            string json = JsonSerializer.Serialize(expenses, options);
-            File.WriteAllText(filePath, json);
-    }
-
-    static void ShowMonthlySummary(List<Expense> expenses)
+    static void ShowMonthlySummary(BudgetManager manager)
     {
             Console.Write("Enter year (e.g., 2025): ");
             int year = int.Parse(Console.ReadLine());
@@ -39,10 +13,7 @@ class Program
             Console.Write("Enter month (1-12): ");
             int month = int.Parse(Console.ReadLine());
 
-            var monthlyExpenses = expenses
-                    .Where(e => e.Date.Year == year && e.Date.Month == month)
-                    .ToList();
-
+            var monthlyExpenses = manager.GetMonthlyExpenses(year, month);
             if (monthlyExpenses.Count == 0)
             {
                     Console.WriteLine("No expenses found for that month.");
@@ -61,104 +32,30 @@ class Program
             }
     }
 
-    static void ShowCategoryReport(List<Expense> expenses)
+    static void ShowCategoryReport(BudgetManager manager)
     {
-            if (expenses.Count == 0)
-            {
-                    Console.WriteLine("No expenses recorded.");
-                    return;
-            }
+        var report = manager.GetCategoryReport().ToList();
 
-            var grouped = expenses
-                    .GroupBy(e => e.Category)
-                    .Select(g => new
-                                    {
-                                    Category = g.Key,
-                                    Total = g.Sum(e => e.Amount),
-                                    Count = g.Count()
-                                    })
-            .OrderByDescending(g => g.Total)
-                    .ToList();
-
-            Console.WriteLine("\n--- Category Report ---");
-
-            foreach (var item in grouped)
-            {
-                    Console.WriteLine($"{item.Category}: ${item.Total} ({item.Count} expenses)");
-            }
-
-            var top = grouped.First();
-            Console.WriteLine($"\nTop category: {top.Category} (${top.Total})");
-    }
-
-    static void ListExpenses(List<Expense> expenses)
-    {
-            if (expenses.Count == 0)
-            {
-                    Console.WriteLine("No expenses recorded.");
-                    return;
-            }
-
-            Console.WriteLine("\n--- All Expenses ---");
-
-            for (int i = 0; i < expenses.Count; i++)
-            {
-                    var e = expenses[i];
-                    Console.WriteLine($"{i}: ${e.Amount} - {e.Category} - {e.Date.ToShortDateString()}");
-            }
-    }
-
-    static void EditExpense(List<Expense> expenses)
-    {
-        ListExpenses(expenses);
-
-        Console.Write("\nEnter the ID of the expense to edit: ");
-        if (!int.TryParse(Console.ReadLine(), out int id) || id < 0 || id >= expenses.Count)
+        if (report.Count == 0)
         {
-                Console.WriteLine("Invalid ID.");
+                Console.WriteLine("No expenses recorded.");
                 return;
         }
 
-        var exp = expenses[id];
+        Console.WriteLine("\n--- Category Report ---");
 
-        Console.Write($"New amount (current: {exp.Amount}): ");
-        if (double.TryParse(Console.ReadLine(), out double newAmount))
-                exp.Amount = newAmount;
-
-        Console.Write($"New category (current: {exp.Category}): ");
-        string newCategory = Console.ReadLine();
-        if (!string.IsNullOrWhiteSpace(newCategory))
-                exp.Category = newCategory;
-
-        Console.Write($"New date (current: {exp.Date.ToShortDateString()}), format YYYY-MM-DD: ");
-        string newDate = Console.ReadLine();
-        if (DateTime.TryParse(newDate, out DateTime parsedDate))
-                exp.Date = parsedDate;
-
-        SaveExpenses(expenses);
-        Console.WriteLine("Expense updated!");
-    }
-
-    static void DeleteExpense(List<Expense> expenses)
-    {
-        ListExpenses(expenses);
-
-        Console.Write("\nEnter the ID of the expense to delete: ");
-        if (!int.TryParse(Console.ReadLine(), out int id) || id < 0 || id >= expenses.Count)
+        foreach (var item in report)
         {
-                Console.WriteLine("Invalid ID.");
-                return;
+                Console.WriteLine($"{item.Category}: ${item.Total} ({item.Count} expenses)");
         }
 
-        expenses.RemoveAt(id);
-        SaveExpenses(expenses);
-
-        Console.WriteLine("Expense deleted!");
+        var top = report.First();
+        Console.WriteLine($"\nTop category: {top.Category} (${top.Total})");
     }
 
     static void Main()
     {
-        List<Expense> expenses = LoadExpenses();
+        BudgetManager manager = new BudgetManager();
         bool running = true;
 
         while (running)
@@ -182,24 +79,20 @@ class Program
                     Console.Write("Enter amount: ");
                     if (!double.TryParse(Console.ReadLine(), out double amount))
                     {
-                        Console.WriteLine("Invalid amount.");
-                        break;
+                            Console.WriteLine("Invalid amount.");
+                            break;
                     }
 
                     Console.Write("Enter category: ");
                     string category = Console.ReadLine();
 
-                    DateTime date = DateTime.Now;
-
-                    expenses.Add(new Expense(amount, category, date));
-                    SaveExpenses(expenses);
-
+                    manager.AddExpense(amount, category, DateTime.Now);
                     Console.WriteLine("Expense added!");
                     break;
- 
+
+
                 case "2":
-                    double total = expenses.Sum(e => e.Amount);
-                    Console.WriteLine($"Total expenses: ${total}");
+                    Console.WriteLine($"Total expenses: ${manager.GetTotal()}");
                     break;
 
                 case "3":
@@ -207,23 +100,55 @@ class Program
                     break;
 
                 case "4":
-                    ShowMonthlySummary(expenses);
+                    ShowMonthlySummary(manager);
                     break;
 
                 case "5":
-                    ShowCategoryReport(expenses);
+                    ShowCategoryReport(manager);
                     break;
 
                 case "6":
-                    ListExpenses(expenses);
+                    for (int i = 0; i < manager.Expenses.Count; i++)
+                    {
+                        var e = manager.Expenses[i];
+                        Console.WriteLine($"{i}: ${e.Amount} - {e.Category} - {e.Date.ToShortDateString()}");
+                    }
                     break;
 
                 case "7":
-                    EditExpense(expenses);
+                    Console.Write("Enter ID to edit: ");
+                    if (!int.TryParse(Console.ReadLine(), out int id))
+                    {
+                            Console.WriteLine("Invalid ID.");
+                            break;
+                    }
+
+                    Console.Write("New amount (leave blank to skip): ");
+                    string amtInput = Console.ReadLine();
+                    double? newAmount = double.TryParse(amtInput, out double parsedAmt) ? parsedAmt : null;
+
+                    Console.Write("New category (leave blank to skip): ");
+                    string newCategory = Console.ReadLine();
+
+                    Console.Write("New date YYYY-MM-DD (leave blank to skip): ");
+                    string dateInput = Console.ReadLine();
+                    DateTime? newDate = DateTime.TryParse(dateInput, out DateTime parsedDate) ? parsedDate : null;
+
+                    manager.EditExpense(id, newAmount, newCategory, newDate);
+                    Console.WriteLine("Expense updated!");
                     break;
 
                 case "8":
-                    DeleteExpense(expenses);
+                    Console.Write("Enter ID to delete: ");
+                    if (int.TryParse(Console.ReadLine(), out int delId))
+                    {
+                            manager.DeleteExpense(delId);
+                            Console.WriteLine("Expense deleted!");
+                    }
+                    else
+                    {
+                            Console.WriteLine("Invalid ID.");
+                    }
                     break;
 
                 default:
